@@ -25,51 +25,43 @@ class Picasa:
             url = 'https://picasaweb.google.com/data/feed/base/user/' + id
             html = urllib.request.urlopen(url).read().decode('utf-8')
 
-            albumList = re.findall('summary.*?'+id+'\/([\d\w]*)', html)
-            if not albumList:
+            albumIds = re.findall('<id>.*?' + id + '\/albumid\/(\d*)', html)
+            if not albumIds:
                 print(id + ' - No album was found!')
                 return
 
-            for album in albumList:
-                if album == 'albumid': continue
-                self.filePath = os.path.join(self.path if self.path else '', id, album)
+            for albumId in albumIds:
+                self.filePath = os.path.join(self.path if self.path else '', id, albumId)
                 os.makedirs(self.filePath, exist_ok=True)
-                self.download_albums(url + '/album/' + album)
 
-    def download_albums(self, albumUrl):
+                photoId = self.getPhotoId(url + '/albumid/' + albumId)
+                albumUrl = 'https://get.google.com/albumarchive/pwaf/'+id+'/album/'+albumId+'/photo/'+photoId
+
+                self.download_album(albumUrl)
+
+    def getPhotoId(self, url):
+        html = urllib.request.urlopen(url).read().decode('utf-8')
+        return re.search('<id>.*?\/\d*\/albumid\/\d*\/photoid\/(\d*)', html).group(1)
+
+    def download_album(self, albumUrl):
         html = urllib.request.urlopen(albumUrl).read().decode('utf-8')
 
-        entryList = re.findall('<entry>(.*?)<\/entry>', html)
-        if not entryList:
+        photoList = re.findall(r'\[\[".*?",".*?",\d*,\d*,.*?\].*?"\d{19}".*?".*?"', html, re.DOTALL)
+        if not photoList:
             print(albumUrl + ' - No media was found!')
             return
 
         pool = Pool(self.THREADS_COUNT)
-        pool.map(self.download_entry, entryList)
+        pool.map(self.download_file, photoList)
         pool.close()
         pool.join()
 
-        print(albumUrl + ' - OK!')
+        # print(albumUrl + ' - OK!')
 
-    def download_entry(self, entry):
-        urlList = re.findall('<media:content url=\'(.*?)\'', entry)
-        if not urlList:
-            print('No media in current entry!')
-            return
-
-        fileName = ''
-        videoSize = 0
-        fileUrl = ''
-        for url in urlList:
-            name = re.search('.*/(.*?)$', url).group(1)
-
-            if name.find("=") == -1:
-                fileName = name
-                fileUrl = url if fileUrl == '' else fileUrl
-                continue
-
-            if re.search('=m(\d+)', url) and int(re.search('=m(\d+)', url).group(1)) > videoSize:
-                fileUrl = url
+    def download_file(self, photoHtml):
+        photoObject = re.search('\[\[".*?","(.*?)",(\d*),(\d*),(.*?)\].*?"\d{19}".*?"(.*?)"', photoHtml, re.DOTALL)
+        fileUrl = photoObject.group(1) + '=' + 'h' + photoObject.group(2) + '-w' + photoObject.group(3) + '-no'
+        fileName = photoObject.group(5)
 
         try:
             urllib.request.urlretrieve(fileUrl, os.path.join(self.filePath, fileName))
