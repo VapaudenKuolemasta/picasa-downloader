@@ -25,15 +25,18 @@ class Picasa:
     def download(self):
         for id in self.ids:
             url = self.ACCOUNT_PREF + id
-            html = urllib.request.urlopen(url).read().decode('utf-8')
+            accoutHtml = urllib.request.urlopen(url).read().decode('utf-8')
 
-            albumIds = re.findall('<id>.*?' + id + '\/albumid\/(\d*)', html)
+            albumIds = re.findall('<id>.*?' + id + '\/albumid\/(\d*)', accoutHtml)
             if not albumIds:
                 print(id + ' - No album was found in this account!')
                 return
 
             for albumId in albumIds:
-                self.filePath = os.path.join(self.path if self.path else '', id, albumId)
+                albumName = re.search(albumId + '.*?' + id + '\/(.*?)\"&gt', accoutHtml).group(1)
+                userName = re.search('<name>(.*?)</name>', accoutHtml).group(1)
+
+                self.filePath = os.path.join(self.path if self.path else '', userName + ' (' + id + ')', albumName)
                 os.makedirs(self.filePath, exist_ok=True)
 
                 albumUrl = url + '/albumid/' + albumId
@@ -47,7 +50,7 @@ class Picasa:
     def download_album(self, albumUrl):
         html = urllib.request.urlopen(albumUrl).read().decode('utf-8')
 
-        photoList = re.findall('\[\[".*?",".*?",\d*,\d*,.*?\].*?"\d{19}".*?".*?".*?"\d{9}":\[.*?[tf]\w{3,4}\]', html, re.DOTALL)
+        photoList = re.findall(',\[?\[\[".*?",".*?",\d*,\d*,.*?\].*?"\d{19}".*?".*?".*?"\d{9}":\[.*?,\[\[.*?\]', html, re.DOTALL)
         if not photoList:
             print(albumUrl + ' - No media was found!')
             return
@@ -62,7 +65,8 @@ class Picasa:
     def download_file(self, photoHtml):
         photoObject = re.search('\[\[".*?","(.*?)",(\d*),(\d*),(.*?)\].*?"\d{19}".*?"(.*?)"', photoHtml, re.DOTALL)
         fileUrl = photoObject.group(1) + '=' + 'h' + photoObject.group(2) + '-w' + photoObject.group(3) + '-no'
-        fileName = photoObject.group(5)
+        fileName = photoObject.group(5).replace('\\', '_').replace('/', '_')
+        fileName = fileName + '.jpg' if fileName.find('.') == -1 else fileName
 
         videoUrls = re.findall('url.*?(lh3\.googleusercontent.*?m(\d\d)).*?itag', photoHtml)
 
