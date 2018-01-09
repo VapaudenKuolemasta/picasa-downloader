@@ -3,8 +3,6 @@ import re
 import os
 import urllib.request
 import urllib.error
-import xml.etree.ElementTree as ET
-import time
 from multiprocessing.dummy import Pool
 
 
@@ -42,8 +40,11 @@ class Picasa:
                 albumUrl = url + '/albumid/' + albumId
                 html = urllib.request.urlopen(albumUrl).read().decode('utf-8')
 
-                photoId = re.search('<id>.*?\/\d*\/albumid\/\d*\/photoid\/(\d*)', html).group(1)
-                albumByPhotoUrl = self.ALBUM_PREF + id + '/album/' + albumId +'/photo/' + photoId
+                photoId = re.search('<id>.*?\/\d*\/albumid\/\d*\/photoid\/(\d*)', html)
+                if photoId == None:
+                    print(albumUrl + ' - No media was found!')
+                    continue
+                albumByPhotoUrl = self.ALBUM_PREF + id + '/album/' + albumId +'/photo/' + photoId.group(1)
 
                 self.download_album(albumByPhotoUrl)
 
